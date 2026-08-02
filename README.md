@@ -40,8 +40,33 @@ CareerReady treats those experiences as evidence. It explains every signal, reco
 - `@huggingface/transformers` with `Xenova/all-MiniLM-L6-v2` for browser-based semantic similarity
 - Local, explainable evidence scoring and `localStorage` progress persistence
 - Lucide icons and a responsive, accessible custom interface
+- Optional Convex account (email + password) to sync progress across devices — see below
 
-No account, database, or paid API is required for the prototype.
+No account, database, or paid API is required to use the prototype anonymously.
+
+## Accounts & cross-device sync (optional, Convex)
+
+Signing in is optional. Without an account, everything works exactly as before
+(local-only, `localStorage`). Creating an account (email + password, no email
+verification) additionally syncs your profile, target listing, role, and
+sprint progress to Convex so they follow you across devices.
+
+Backend code lives in `convex/`. To wire it up:
+
+1. **GitHub secret**: add `CONVEX_DEPLOY_KEY` under repo Settings → Secrets
+   and variables → Actions, using a deploy key from your Convex project
+   dashboard. Pushing to `main` (or running the "Deploy Convex" workflow
+   manually) then deploys `convex/` and provisions Convex Auth's JWT keys and
+   `SITE_URL` automatically (only on first run; safe to re-run).
+2. **Cloudflare Pages**: set `NEXT_PUBLIC_CONVEX_URL` as a build environment
+   variable (Settings → Environment variables) to
+   `https://<your-deployment-name>.convex.cloud`, matching the deployment the
+   deploy key targets. Without it, the app builds and runs fine with accounts
+   simply not shown (`CONVEX_ENABLED` in `app/page.tsx` gates the feature).
+3. **Local dev**: copy `.env.local.example` to `.env.local` and fill in the
+   same URL.
+4. Once deployed, double-check `npx convex env get SITE_URL` matches your real
+   production domain — the workflow seeds a placeholder on first run.
 
 ## Run locally
 

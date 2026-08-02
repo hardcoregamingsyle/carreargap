@@ -11,10 +11,15 @@
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "convex:dev": "convex dev",
+    "convex:deploy": "convex deploy"
   },
   "dependencies": {
+    "@auth/core": "^0.41.3",
+    "@convex-dev/auth": "^0.0.94",
     "@huggingface/transformers": "^4.2.0",
+    "convex": "^1.43.0",
     "drizzle-orm": "0.45.2",
     "lucide-react": "^1.28.0",
     "next": "16.2.6",

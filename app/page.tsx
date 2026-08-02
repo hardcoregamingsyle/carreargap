@@ -25,8 +25,16 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { compareMeaning } from "./on-device-ai";
+import { api } from "../convex/_generated/api";
+
+// Inlined at build time from NEXT_PUBLIC_CONVEX_URL (see ConvexClientProvider).
+// Deployments that haven't configured Convex yet keep the original
+// localStorage-only behavior instead of mounting Convex hooks with no provider.
+const CONVEX_ENABLED = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
 type Skill = {
   name: string;
@@ -267,7 +275,19 @@ export default function Home() {
           <HeartHandshake size={19} />
           <div><strong>Built for access</strong><span>No degree filter. No career jargon.</span></div>
         </div>
-        <div className="profile-pill"><span>HS</span><div><strong>Harvin S.</strong><small>7-day streak · 1 day</small></div><ChevronRight size={16} /></div>
+        {CONVEX_ENABLED ? (
+          <AccountPanel
+            syncState={{ selectedRole, profile, listing, completedDays }}
+            onHydrate={(saved) => {
+              setSelectedRole(saved.selectedRole as keyof typeof roles);
+              setProfile(saved.profile);
+              setListing(saved.listing);
+              setCompletedDays(saved.completedDays);
+            }}
+          />
+        ) : (
+          <div className="profile-pill"><span>HS</span><div><strong>Harvin S.</strong><small>7-day streak · 1 day</small></div><ChevronRight size={16} /></div>
+        )}
       </aside>
 
       {mobileNav && <button className="nav-backdrop" aria-label="Close menu" onClick={() => setMobileNav(false)} />}
@@ -411,5 +431,124 @@ export default function Home() {
         </div>
       </section>
     </main>
+  );
+}
+
+type SyncedState = {
+  selectedRole: string;
+  profile: string;
+  listing: string;
+  completedDays: number[];
+};
+
+// Replaces the sidebar's static profile pill when Convex is configured.
+// Signed out: a trigger that opens an email+password sign up/in form.
+// Signed in: current progress is synced to Convex (debounced) and hydrated
+// back on load, so it follows the user across devices. Anonymous use is
+// unaffected — localStorage stays the source of truth until sign-in.
+function AccountPanel({
+  syncState,
+  onHydrate,
+}: {
+  syncState: SyncedState;
+  onHydrate: (saved: SyncedState) => void;
+}) {
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { signIn, signOut } = useAuthActions();
+  const saved = useQuery(api.careerProfile.get, isAuthenticated ? {} : "skip");
+  const save = useMutation(api.careerProfile.save);
+
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [mode, setMode] = useState<"signUp" | "signIn">("signUp");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      hydratedRef.current = false;
+      return;
+    }
+    if (saved === undefined || hydratedRef.current) return;
+    hydratedRef.current = true;
+    if (saved) {
+      onHydrate({
+        selectedRole: saved.selectedRole,
+        profile: saved.profile,
+        listing: saved.listing,
+        completedDays: saved.completedDays,
+      });
+    }
+    // onHydrate is a fresh closure each render; only re-run when the server
+    // snapshot or auth state actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, saved]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !hydratedRef.current) return;
+    const timeout = setTimeout(() => {
+      save(syncState).catch(() => {});
+    }, 800);
+    return () => clearTimeout(timeout);
+  }, [isAuthenticated, syncState, save]);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await signIn("password", { email, password, flow: mode });
+      setPanelOpen(false);
+      setPassword("");
+    } catch {
+      setError(
+        mode === "signUp"
+          ? "Could not create that account — try a different email or a password with at least 8 characters."
+          : "Incorrect email or password.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="profile-pill"><span>··</span><div><strong>Loading…</strong></div></div>;
+  }
+
+  if (isAuthenticated) {
+    return (
+      <button type="button" className="profile-pill" onClick={() => signOut()}>
+        <span><UserRound size={16} /></span>
+        <div><strong>Signed in</strong><small>Synced to your account · tap to sign out</small></div>
+        <ChevronRight size={16} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="account-panel">
+      <button type="button" className="profile-pill" onClick={() => setPanelOpen((open) => !open)} aria-expanded={panelOpen}>
+        <span><UserRound size={16} /></span>
+        <div><strong>Save your progress</strong><small>Sign in or create an account</small></div>
+        <ChevronRight size={16} />
+      </button>
+      {panelOpen && (
+        <form className="account-form" onSubmit={submit}>
+          <div className="account-form-tabs">
+            <button type="button" className={mode === "signUp" ? "active" : ""} onClick={() => setMode("signUp")}>Create account</button>
+            <button type="button" className={mode === "signIn" ? "active" : ""} onClick={() => setMode("signIn")}>Sign in</button>
+          </div>
+          <label>Email<input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          <label>Password<input type="password" required minLength={8} autoComplete={mode === "signUp" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          {error && <p className="account-form-error">{error}</p>}
+          <button type="submit" className="primary-button" disabled={submitting}>
+            {submitting ? "…" : mode === "signUp" ? "Create account" : "Sign in"}
+          </button>
+        </form>
+      )}
+    </div>
   );
 }

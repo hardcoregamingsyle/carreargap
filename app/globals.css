@@ -43,6 +43,20 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(238, 107,
 .profile-pill strong, .profile-pill small { display: block; }
 .profile-pill strong { font-size: 11px; }
 .profile-pill small { margin-top: 3px; color: #8da0aa; font-size: 9px; }
+button.profile-pill { width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+button.profile-pill:hover strong { color: var(--lime); }
+
+.account-panel { position: relative; margin-top: 18px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.1); }
+.account-panel .profile-pill { margin: 0; padding: 0; border: 0; }
+.account-form { position: absolute; left: 0; right: 0; bottom: calc(100% + 10px); padding: 14px; display: grid; gap: 10px; border-radius: 12px; background: #0e2130; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 20px 40px rgba(0,0,0,.35); z-index: 5; }
+.account-form-tabs { display: flex; gap: 6px; padding: 3px; border-radius: 8px; background: rgba(255,255,255,.06); }
+.account-form-tabs button { flex: 1; padding: 7px; border: 0; border-radius: 6px; background: transparent; color: #9eafb8; font-size: 10px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: .4px; }
+.account-form-tabs button.active { background: var(--lime); color: var(--navy); }
+.account-form label { display: grid; gap: 5px; color: #9eafb8; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+.account-form input { padding: 9px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: white; font-size: 13px; font-weight: 500; }
+.account-form input:focus { outline: 2px solid var(--lime); outline-offset: 1px; }
+.account-form-error { margin: 0; color: #ff9d8a; font-size: 11px; line-height: 1.4; }
+.account-form .primary-button { width: 100%; min-width: 0; }
 .close-menu, .menu-button { display: none; }
 
 .content { margin-left: 248px; min-width: 0; }
