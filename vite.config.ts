@@ -27,7 +27,9 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
-  compatibility_flags: ["nodejs_compat"],
+  // compatibility_flags comes from the root wrangler.jsonc, which the
+  // Cloudflare plugin auto-discovers and merges in; declaring it here too
+  // makes Miniflare see the flag twice and refuse to start.
   d1_databases: d1
     ? [
         {
