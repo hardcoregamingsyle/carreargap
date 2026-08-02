@@ -27,10 +27,12 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
-  // Local dev only. The deployed Worker gets nodejs_compat from the Pages
-  // project's own compatibility flags (Settings > Runtime), since Pages
-  // ignores wrangler config files that aren't Pages-shaped.
-  compatibility_flags: ["nodejs_compat"],
+  // compatibility_flags deliberately omitted: the Cloudflare plugin merges the
+  // root wrangler.jsonc into this inline config by CONCATENATING arrays, so
+  // declaring nodejs_compat here too produces ["nodejs_compat","nodejs_compat"]
+  // in the generated dist/server/wrangler.json, which the Workers API rejects
+  // with "Compatibility flag specified multiple times" (code 10021).
+  // wrangler.jsonc is the single source of truth for it.
   d1_databases: d1
     ? [
         {
