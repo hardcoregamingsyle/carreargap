@@ -1,0 +1,44 @@
+name: Deploy Convex
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: convex-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Ensure Convex Auth is configured (JWT keys, SITE_URL)
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: node .github/scripts/ensure-convex-auth-keys.mjs
+
+      - name: Deploy Convex functions
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: npx convex deploy
+
+      - name: Commit refreshed convex/_generated, if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add convex/_generated
+          git diff --cached --quiet || git commit -m "chore: refresh convex/_generated from deploy [skip ci]"
+          git push

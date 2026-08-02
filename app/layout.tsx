@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { ConvexClientProvider } from "./ConvexClientProvider";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -21,5 +22,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return (
+    <html lang="en">
+      <body>
+        <ConvexClientProvider>{children}</ConvexClientProvider>
+      </body>
+    </html>
+  );
 }
