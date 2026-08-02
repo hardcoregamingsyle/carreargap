@@ -16,7 +16,10 @@ function convexEnvGet(name) {
 }
 
 function convexEnvSet(name, value) {
-  execFileSync("npx", ["convex", "env", "set", name, value], {
+  // `--` forces commander to treat `value` as positional even when it starts
+  // with `-` (true for the PEM private key: "-----BEGIN PRIVATE KEY-----"),
+  // which otherwise gets misparsed as an unknown option.
+  execFileSync("npx", ["convex", "env", "set", "--", name, value], {
     stdio: "inherit",
   });
 }
