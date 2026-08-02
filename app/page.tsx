@@ -29,6 +29,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { compareMeaning } from "./on-device-ai";
+import { analyzeListing, type Analysis } from "./analyze";
 import { api } from "../convex/_generated/api";
 
 // Inlined at build time from NEXT_PUBLIC_CONVEX_URL (see ConvexClientProvider).
@@ -36,23 +37,9 @@ import { api } from "../convex/_generated/api";
 // localStorage-only behavior instead of mounting Convex hooks with no provider.
 const CONVEX_ENABLED = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
-type Skill = {
-  name: string;
-  score: number;
-  status: "strong" | "build";
-  evidence: string;
-};
-
-type Analysis = {
-  role: string;
-  company: string;
-  score: number;
-  skills: Skill[];
-  strengths: string[];
-  gaps: string[];
-};
-
-const roles = {
+// Starting points only — the analysis itself reads whatever listing the user
+// pastes, so any job description works, not just these.
+const samples = {
   "Data Analyst": {
     company: "GreenGrid Energy",
     listing:
@@ -76,82 +63,12 @@ const roles = {
   },
 } as const;
 
-const roleSkills: Record<keyof typeof roles, Array<[string, number, "strong" | "build", string]>> = {
-  "Data Analyst": [
-    ["Data storytelling", 88, "strong", "Recycling dashboard + presentations"],
-    ["Spreadsheet analysis", 84, "strong", "Excel formulas and survey cleanup"],
-    ["Python", 61, "build", "Basic projects mentioned"],
-    ["SQL", 42, "build", "Learning, but no project evidence yet"],
-    ["Power BI", 28, "build", "Not found in your profile"],
-  ],
-  "UX Designer": [
-    ["User research", 91, "strong", "8 interviews + usability testing"],
-    ["Figma prototyping", 88, "strong", "Interactive library prototype"],
-    ["Design rationale", 76, "strong", "Research-led redesign evidence"],
-    ["Accessibility", 49, "build", "No accessibility audit mentioned"],
-    ["Developer handoff", 37, "build", "No handoff evidence yet"],
-  ],
-  "Frontend Developer": [
-    ["Responsive UI", 88, "strong", "Two responsive websites"],
-    ["React", 82, "strong", "Study planner project"],
-    ["Git collaboration", 66, "strong", "GitHub school projects"],
-    ["TypeScript", 48, "build", "Familiar, but limited proof"],
-    ["Testing", 24, "build", "No automated tests mentioned"],
-  ],
-};
-
-const interviewQuestions: Record<keyof typeof roles, string[]> = {
-  "Data Analyst": [
-    "Tell me about a time your data changed someone’s decision.",
-    "How would you investigate a sudden 20% drop in weekly engagement?",
-    "Explain a dashboard insight to a teammate who does not work with data.",
-  ],
-  "UX Designer": [
-    "Tell me about a design choice you changed after user feedback.",
-    "How would you make a healthcare flow work for low-vision users?",
-    "Walk me through a disagreement with an engineer about your design.",
-  ],
-  "Frontend Developer": [
-    "Tell me about a UI bug that was difficult to diagnose.",
-    "How do you make a component accessible before testing it?",
-    "Explain how you would improve a slow page without guessing.",
-  ],
-};
-
 const navItems = [
   ["Overview", TrendingUp],
   ["Pathfinder", Target],
   ["Learning sprint", BookOpen],
   ["Interview lab", MessageSquareText],
 ] as const;
-
-function inferRole(listing: string): keyof typeof roles {
-  const value = listing.toLowerCase();
-  if (value.includes("figma") || value.includes("designer") || value.includes("ux")) return "UX Designer";
-  if (value.includes("react") || value.includes("frontend") || value.includes("typescript")) return "Frontend Developer";
-  return "Data Analyst";
-}
-
-function makeAnalysis(role: keyof typeof roles, profile: string): Analysis {
-  const source = roles[role];
-  const words = profile.trim().split(/\s+/).filter(Boolean).length;
-  const evidenceBonus = Math.min(5, Math.floor(words / 35));
-  const skills = roleSkills[role].map(([name, score, status, evidence]) => ({
-    name,
-    score: Math.min(96, score + evidenceBonus),
-    status,
-    evidence,
-  }));
-  const average = Math.round(skills.reduce((sum, item) => sum + item.score, 0) / skills.length);
-  return {
-    role,
-    company: source.company,
-    score: average,
-    skills,
-    strengths: skills.filter((skill) => skill.status === "strong").slice(0, 3).map((skill) => skill.name),
-    gaps: skills.filter((skill) => skill.status === "build").slice(0, 3).map((skill) => skill.name),
-  };
-}
 
 function scoreAnswer(answer: string) {
   const lower = answer.toLowerCase();
@@ -171,10 +88,12 @@ function scoreAnswer(answer: string) {
 }
 
 export default function Home() {
-  const [selectedRole, setSelectedRole] = useState<keyof typeof roles>("Data Analyst");
-  const [profile, setProfile] = useState<string>(roles["Data Analyst"].profile);
-  const [listing, setListing] = useState<string>(roles["Data Analyst"].listing);
-  const [analysis, setAnalysis] = useState<Analysis>(() => makeAnalysis("Data Analyst", roles["Data Analyst"].profile));
+  const [selectedRole, setSelectedRole] = useState<string>("Data Analyst");
+  const [profile, setProfile] = useState<string>(samples["Data Analyst"].profile);
+  const [listing, setListing] = useState<string>(samples["Data Analyst"].listing);
+  const [analysis, setAnalysis] = useState<Analysis>(() =>
+    analyzeListing(samples["Data Analyst"].listing, samples["Data Analyst"].profile),
+  );
   const [activeNav, setActiveNav] = useState("Overview");
   const [mobileNav, setMobileNav] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -204,11 +123,11 @@ export default function Home() {
     ];
   }, [analysis]);
 
-  const switchRole = (role: keyof typeof roles) => {
-    setSelectedRole(role);
-    setProfile(roles[role].profile);
-    setListing(roles[role].listing);
-    setAnalysis(makeAnalysis(role, roles[role].profile));
+  const loadSample = (sample: keyof typeof samples) => {
+    setSelectedRole(sample);
+    setProfile(samples[sample].profile);
+    setListing(samples[sample].listing);
+    setAnalysis(analyzeListing(samples[sample].listing, samples[sample].profile));
     setAnswer("");
     setAnswerResult(null);
     setQuestionIndex(0);
@@ -218,8 +137,11 @@ export default function Home() {
     setAnalyzing(true);
     setAiState("loading");
     setAnswerResult(null);
-    const inferred = inferRole(listing);
-    const base = makeAnalysis(inferred, profile);
+    setQuestionIndex(0);
+    setAnswer("");
+    // Skills, evidence and questions all come from the pasted listing, so any
+    // job description works — not just the samples.
+    const base = analyzeListing(listing, profile);
     try {
       const similarity = await Promise.race([
         compareMeaning(profile, listing),
@@ -233,7 +155,7 @@ export default function Home() {
       setAnalysis(base);
       setAiState("fallback");
     }
-    setSelectedRole(inferred);
+    setSelectedRole(base.role);
     setAnalyzing(false);
     document.getElementById("pathfinder")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -279,10 +201,11 @@ export default function Home() {
           <AccountPanel
             syncState={{ selectedRole, profile, listing, completedDays }}
             onHydrate={(saved) => {
-              setSelectedRole(saved.selectedRole as keyof typeof roles);
+              setSelectedRole(saved.selectedRole);
               setProfile(saved.profile);
               setListing(saved.listing);
               setCompletedDays(saved.completedDays);
+              setAnalysis(analyzeListing(saved.listing, saved.profile));
             }}
           />
         ) : (
@@ -314,10 +237,10 @@ export default function Home() {
 
           <section className="input-card" aria-labelledby="start-heading">
             <div className="input-card-heading">
-              <div><span className="mini-label">Try a real pathway</span><h2 id="start-heading">What are you aiming for?</h2></div>
-              <div className="role-tabs" role="tablist" aria-label="Example roles">
-                {(Object.keys(roles) as Array<keyof typeof roles>).map((role) => (
-                  <button key={role} role="tab" aria-selected={selectedRole === role} className={selectedRole === role ? "selected" : ""} onClick={() => switchRole(role)}>{role}</button>
+              <div><span className="mini-label">Paste any job post — or start from a sample</span><h2 id="start-heading">What are you aiming for?</h2></div>
+              <div className="role-tabs" aria-label="Load a sample pathway">
+                {(Object.keys(samples) as Array<keyof typeof samples>).map((sample) => (
+                  <button key={sample} type="button" className={selectedRole === sample ? "selected" : ""} onClick={() => loadSample(sample)}>{sample}</button>
                 ))}
               </div>
             </div>
@@ -327,8 +250,8 @@ export default function Home() {
                 <textarea value={profile} onChange={(event) => setProfile(event.target.value)} placeholder="Paste your résumé or describe projects, volunteering and skills…" />
               </label>
               <label>
-                <span className="field-title"><BriefcaseBusiness size={17} /> Target opportunity <small>Job post</small></span>
-                <textarea value={listing} onChange={(event) => setListing(event.target.value)} placeholder="Paste a job description…" />
+                <span className="field-title"><BriefcaseBusiness size={17} /> Target opportunity <small>{listing.trim().split(/\s+/).filter(Boolean).length} words</small></span>
+                <textarea value={listing} onChange={(event) => setListing(event.target.value)} placeholder="Paste any job description here — any role, any industry. CareerReady reads the skills it asks for and checks them against your experience." />
               </label>
             </div>
             <div className="analysis-actions">
@@ -401,11 +324,11 @@ export default function Home() {
               <div className="eyebrow light"><span>04</span> Adaptive interview lab</div>
               <h2>Practice the story<br />behind the skills.</h2>
               <p>No generic “confidence” score. CareerReady checks whether your answer includes context, your action, and a concrete outcome.</p>
-              <div className="question-dots">{interviewQuestions[selectedRole].map((_, index) => <span key={index} className={questionIndex === index ? "active" : ""} />)}</div>
+              <div className="question-dots">{analysis.questions.map((_, index) => <span key={index} className={questionIndex === index ? "active" : ""} />)}</div>
             </div>
             <div className="interview-card">
-              <div className="question-label"><span>Question {questionIndex + 1} of 3</span><button onClick={() => { setQuestionIndex((questionIndex + 1) % 3); setAnswer(""); setAnswerResult(null); }}><RotateCcw size={15} /> New question</button></div>
-              <h3>“{interviewQuestions[selectedRole][questionIndex]}”</h3>
+              <div className="question-label"><span>Question {questionIndex + 1} of {analysis.questions.length}</span><button onClick={() => { setQuestionIndex((questionIndex + 1) % analysis.questions.length); setAnswer(""); setAnswerResult(null); }}><RotateCcw size={15} /> New question</button></div>
+              <h3>“{analysis.questions[questionIndex] ?? analysis.questions[0]}”</h3>
               <textarea value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Try: During our school recycling project, I noticed…" />
               <div className="answer-actions">
                 <button className="mic-button" title="Voice input is available in supported browsers"><Mic size={18} /> Speak answer</button>
