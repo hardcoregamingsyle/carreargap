@@ -24,6 +24,8 @@ export type Analysis = {
 
 type SkillDef = {
   name: string;
+  /** Implied by real achievements even when the word never appears. */
+  transferable?: boolean;
   /** Any of these appearing in the listing means the role wants this skill. */
   terms: string[];
   /** Adjacent experience — partial credit, and named in the explanation. */
@@ -89,12 +91,12 @@ const SKILLS: SkillDef[] = [
   { name: "Research", terms: ["research", "literature review", "qualitative", "quantitative"], related: ["study", "analysis", "survey", "investigate"] },
 
   // Transferable
-  { name: "Communication", terms: ["communication", "communicate", "presenting", "presentation", "articulate"], related: ["explain", "present", "wrote", "report", "peer", "team"] },
-  { name: "Teamwork", terms: ["teamwork", "collaborate", "collaboration", "team player"], related: ["team", "group", "peer", "together", "coordinator"] },
-  { name: "Problem solving", terms: ["problem solving", "problem-solving", "analytical thinking", "critical thinking"], related: ["solve", "debug", "improve", "figure out", "fixed"] },
-  { name: "Leadership", terms: ["leadership", "lead a team", "manage a team", "ownership"], related: ["led", "organized", "coordinator", "captain", "president", "founder"] },
-  { name: "Attention to detail", terms: ["attention to detail", "detail-oriented", "detailed", "accuracy", "accurate", "meticulous"], related: ["careful", "checked", "reviewed", "quality", "records", "proofread"] },
-  { name: "Adaptability", terms: ["adaptability", "fast-paced", "ambiguity", "self-starter", "proactive"], related: ["learned", "picked up", "new", "quickly"] },
+  { transferable: true, name: "Communication", terms: ["communication", "communicate", "presenting", "presentation", "articulate"], related: ["explain", "present", "wrote", "report", "peer", "team"] },
+  { transferable: true, name: "Teamwork", terms: ["teamwork", "collaborate", "collaboration", "team player"], related: ["team", "group", "peer", "together", "coordinator"] },
+  { transferable: true, name: "Problem solving", terms: ["problem solving", "problem-solving", "analytical thinking", "critical thinking"], related: ["solve", "debug", "improve", "figure out", "fixed"] },
+  { transferable: true, name: "Leadership", terms: ["leadership", "lead a team", "manage a team", "ownership"], related: ["led", "organized", "coordinator", "captain", "president", "founder"] },
+  { transferable: true, name: "Attention to detail", terms: ["attention to detail", "detail-oriented", "detailed", "accuracy", "accurate", "meticulous"], related: ["careful", "checked", "reviewed", "quality", "records", "proofread"] },
+  { transferable: true, name: "Adaptability", terms: ["adaptability", "fast-paced", "ambiguity", "self-starter", "proactive"], related: ["learned", "picked up", "new", "quickly"] },
 ];
 
 // Whole-token match so "ts" doesn't fire inside "sports" or "js" inside "jsx",
@@ -112,6 +114,33 @@ function termRegex(term: string): RegExp {
 
 function hasTerm(haystack: string, term: string): boolean {
   return termRegex(term).test(haystack);
+}
+
+const ACTION_VERB =
+  /\b(?:built|led|ran|created|design|develop|analys|analyz|manag|wrote|writ|automat|present|deliver|improv|reduc|increas|organis|organiz|train|coordinat|launch|handl|clean|optimis|optimiz|implement|conduct|research|tested|testing|maintain|resolv|schedul|taught|mentor|volunteer|process|track|monitor|review|edit|publish|sold|raised|won|cut|saved|grew|built|ship|fix)\w*\b/i;
+
+/** Self-description anyone can write, with nothing behind it. */
+const SELF_CLAIM =
+  /\b(?:i\s+am|i'm|hard[-\s]?working|hardworking|team\s+player|good\s+communication|excellent\s+communication|strong\s+communication|self[-\s]?motivated|detail[-\s]?oriented|go[-\s]?getter|passionate\s+about|results[-\s]?driven|dynamic\s+individual|quick\s+learner)\b/i;
+
+/**
+ * How well a sentence actually evidences a skill.
+ *
+ * Naming a skill is not the same as showing it. Without this, a résumé that
+ * merely lists "Communication, teamwork" outscores one that describes
+ * coordinating a team but never uses the word — which inverts the ranking and
+ * rewards exactly the buzzword padding this product tells people to remove.
+ */
+function evidenceTier(sentence: string | null): "quantified" | "demonstrated" | "mentioned" | "claimed" {
+  if (!sentence) return "mentioned";
+  if (SELF_CLAIM.test(sentence)) return "claimed";
+
+  const hasAction = ACTION_VERB.test(sentence);
+  // A bare comma-separated run with no verb is a skills list, not evidence.
+  if (!hasAction && (sentence.match(/,/g) ?? []).length >= 2) return "claimed";
+  if (hasAction && /\d/.test(sentence)) return "quantified";
+  if (hasAction) return "demonstrated";
+  return "mentioned";
 }
 
 /** Tentative phrasing — the skill is named, but not yet demonstrated. */
@@ -295,6 +324,14 @@ export function analyzeListing(listing: string, profile: string): Analysis {
   const words = profile.trim().split(/\s+/).filter(Boolean).length;
   const depthBonus = Math.min(6, Math.floor(words / 40));
 
+  // Someone who ran projects and shipped results plainly communicates, solves
+  // problems and adapts — whether or not they wrote those words down. Judging
+  // transferable skills purely on keywords punishes the substantive résumé and
+  // rewards the padded one.
+  const achievements = profileSentences.filter(
+    (sentence) => evidenceTier(sentence) === "quantified" || evidenceTier(sentence) === "demonstrated",
+  ).length;
+
   const skills: Skill[] = chosen.map((skill) => {
     const directTerm = skill.terms.find((term) => hasTerm(cv, term));
     if (directTerm) {
@@ -311,11 +348,31 @@ export function analyzeListing(listing: string, profile: string): Analysis {
           evidence: `You mention ${skill.name}, but as something in progress: “${quote}” — a finished project would make this count.`,
         };
       }
+      const tier = evidenceTier(quote);
+      if (tier === "claimed") {
+        return {
+          name: skill.name,
+          score: Math.min(58, 46 + Math.floor(depthBonus / 2)),
+          status: "build",
+          evidence: quote
+            ? `You claim ${skill.name}, but only as a description: “${quote}” — show it with something you did.`
+            : `${skill.name} is listed, but never demonstrated.`,
+        };
+      }
+
+      const base = tier === "quantified" ? 88 : tier === "demonstrated" ? 78 : 64;
+      const ceiling = tier === "quantified" ? 96 : tier === "demonstrated" ? 88 : 72;
       return {
         name: skill.name,
-        score: Math.min(96, 76 + depthBonus + (quantified ? 8 : 0)),
-        status: "strong",
-        evidence: quote ? `Your words: “${quote}”` : `You mention ${directTerm} in your experience.`,
+        score: Math.min(ceiling, base + depthBonus + (quantified ? 2 : 0)),
+        status: tier === "mentioned" ? "build" : "strong",
+        evidence: quote
+          ? tier === "quantified"
+            ? `Proven with a result: “${quote}”`
+            : tier === "demonstrated"
+              ? `Your words: “${quote}”`
+              : `Mentioned, but not shown in action: “${quote}”`
+          : `You mention ${directTerm} in your experience.`,
       };
     }
 
@@ -324,11 +381,21 @@ export function analyzeListing(listing: string, profile: string): Analysis {
       const quote = quoteFor(profileSentences, skill.related ?? []);
       return {
         name: skill.name,
-        score: Math.min(72, 58 + depthBonus),
+        // Adjacent real experience outranks an unbacked buzzword claim.
+        score: Math.min(66, 54 + depthBonus),
         status: "build",
         evidence: quote
           ? `Adjacent evidence (“${relatedTerm}”), but not ${skill.name} directly: “${quote}”`
           : `Related experience found, but no direct ${skill.name} proof yet.`,
+      };
+    }
+
+    if (skill.transferable && achievements >= 2) {
+      return {
+        name: skill.name,
+        score: Math.min(64, 44 + achievements * 3),
+        status: "build",
+        evidence: `You never use the word, but ${achievements} of your lines describe real work that implies it — name it explicitly and it becomes provable.`,
       };
     }
 
