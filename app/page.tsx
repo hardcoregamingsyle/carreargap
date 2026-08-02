@@ -22,6 +22,7 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Upload,
   UserRound,
   X,
 } from "lucide-react";
@@ -31,6 +32,7 @@ import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { compareMeaning } from "./on-device-ai";
 import { analyzeListing, type Analysis } from "./analyze";
 import { reviewResume } from "./resume-review";
+import { extractPdfText, isPdfFile, MAX_PDF_BYTES, PdfReadError } from "./pdf-text";
 import { api } from "../convex/_generated/api";
 
 // Inlined at build time from NEXT_PUBLIC_CONVEX_URL (see ConvexClientProvider).
@@ -105,6 +107,12 @@ export default function Home() {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [completedDays, setCompletedDays] = useState<number[]>([1]);
   const [aiState, setAiState] = useState<"private" | "loading" | "ready" | "fallback">("private");
+  const [resumeFile, setResumeFile] = useState<{ name: string; pages: number; words: number } | null>(null);
+  const [uploadState, setUploadState] = useState<"idle" | "reading">("idle");
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [showExtracted, setShowExtracted] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("careerready-progress");
@@ -132,14 +140,49 @@ export default function Home() {
   }, [analysis]);
 
   // The fields start pre-filled with a worked example so the page is readable
-  // on arrival; this empties both so the user can paste their own.
+  // on arrival; this empties them so the user can use their own.
   const clearFields = () => {
     setProfile("");
     setListing("");
     setAnswer("");
     setAnswerResult(null);
     setQuestionIndex(0);
+    setResumeFile(null);
+    setUploadError(null);
+    setShowExtracted(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     document.getElementById("start-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleResumeFile = async (file: File | undefined | null) => {
+    if (!file) return;
+    setUploadError(null);
+
+    if (!isPdfFile(file)) {
+      setUploadError(`“${file.name}” isn’t a PDF. Only .pdf files are supported.`);
+      return;
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      setUploadError(`That file is ${(file.size / 1024 / 1024).toFixed(1)} MB. Please keep it under 10 MB.`);
+      return;
+    }
+
+    setUploadState("reading");
+    try {
+      const { text, pages, words } = await extractPdfText(file);
+      setProfile(text);
+      setResumeFile({ name: file.name, pages, words });
+      setShowExtracted(false);
+    } catch (error) {
+      setResumeFile(null);
+      setUploadError(
+        error instanceof PdfReadError
+          ? error.message
+          : "That PDF couldn’t be read. Try re-exporting it, or paste your experience as text.",
+      );
+    } finally {
+      setUploadState("idle");
+    }
   };
 
   const runAnalysis = async () => {
@@ -252,10 +295,72 @@ export default function Home() {
               </button>
             </div>
             <div className="input-grid">
-              <label>
-                <span className="field-title"><UserRound size={17} /> Your experience <small>{profile.trim().split(/\s+/).length} words</small></span>
-                <textarea value={profile} onChange={(event) => setProfile(event.target.value)} placeholder="Paste your résumé or describe projects, volunteering and skills…" />
-              </label>
+              <div className="upload-field">
+                <span className="field-title"><UserRound size={17} /> Your résumé <small>PDF only</small></span>
+                <div
+                  className={`dropzone${dragging ? " dragging" : ""}${resumeFile ? " filled" : ""}${uploadState === "reading" ? " busy" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Upload your résumé as a PDF"
+                  aria-busy={uploadState === "reading"}
+                  onClick={() => uploadState === "idle" && fileInputRef.current?.click()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      if (uploadState === "idle") fileInputRef.current?.click();
+                    }
+                  }}
+                  onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setDragging(false);
+                    void handleResumeFile(event.dataTransfer.files?.[0]);
+                  }}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="visually-hidden"
+                    onChange={(event) => void handleResumeFile(event.target.files?.[0])}
+                  />
+                  {uploadState === "reading" ? (
+                    <><span className="spinner" /><strong>Reading your PDF…</strong><small>Happening in your browser</small></>
+                  ) : resumeFile ? (
+                    <>
+                      <FileText size={22} />
+                      <strong>{resumeFile.name}</strong>
+                      <small>{resumeFile.pages} page{resumeFile.pages === 1 ? "" : "s"} · {resumeFile.words} words read · click to replace</small>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={22} />
+                      <strong>Upload your résumé</strong>
+                      <small>Drag a PDF here, or click to browse. Supported: .pdf only.</small>
+                    </>
+                  )}
+                </div>
+
+                {uploadError && <p className="upload-error"><X size={13} /> {uploadError}</p>}
+
+                {profile.trim() && (
+                  <div className="extracted">
+                    <button type="button" onClick={() => setShowExtracted(!showExtracted)}>
+                      {showExtracted ? "Hide" : "Check"} the text we read
+                      <small>{profile.trim().split(/\s+/).filter(Boolean).length} words</small>
+                    </button>
+                    {showExtracted && (
+                      <textarea
+                        value={profile}
+                        onChange={(event) => setProfile(event.target.value)}
+                        aria-label="Text read from your résumé"
+                        placeholder="Your résumé text appears here once a PDF is read. You can correct it."
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
               <label>
                 <span className="field-title"><BriefcaseBusiness size={17} /> Target opportunity <small>{listing.trim().split(/\s+/).filter(Boolean).length} words</small></span>
                 <textarea value={listing} onChange={(event) => setListing(event.target.value)} placeholder="Paste any job description here — any role, any industry. CareerReady reads the skills it asks for and checks them against your experience." />

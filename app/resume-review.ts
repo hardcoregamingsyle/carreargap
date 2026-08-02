@@ -99,6 +99,32 @@ function hasPhrase(text: string, phrase: string): boolean {
   return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:[^a-z0-9]|$)`, "i").test(text);
 }
 
+const SECTION_HEADING =
+  /^(?:work\s+)?(?:experience|education|skills?|projects?|summary|objective|profile|certifications?|achievements?|awards?|activities|volunteering|interests|hobbies|languages|references|contact|personal\s+details|employment|training)\b\s*:?\s*$/i;
+
+/**
+ * A real PDF résumé opens with a name, contact details and section headings.
+ * Those are not achievement bullets, and telling someone to add a metric to
+ * their own name would be nonsense.
+ */
+function isNotABullet(line: string): boolean {
+  const text = line.trim();
+  if (!text) return true;
+
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length < 4) return true; // name, heading, or a bare label
+  if (/[\w.+-]+@[\w.-]+\.\w+/.test(text)) return true; // email
+  if (/https?:\/\/|www\.|linkedin\.com|github\.com/i.test(text)) return true; // links
+  if (/^\+?\d[\d\s()-]{7,}\d$/.test(text)) return true; // phone number
+  if (SECTION_HEADING.test(text)) return true;
+
+  // ALL-CAPS run of a few words: a name or a section banner.
+  const letters = text.replace(/[^A-Za-z]/g, "");
+  if (letters.length > 2 && letters === letters.toUpperCase() && words.length <= 5) return true;
+
+  return false;
+}
+
 /** Split into reviewable lines: bullet points, or sentences when prose. */
 function toLines(text: string): string[] {
   const byLine = text
@@ -172,7 +198,9 @@ function reviewLine(line: string): BulletNote | null {
 export function reviewResume(resume: string, requiredSkills: string[] = []): ResumeReview {
   const text = resume.trim();
   const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
-  const lines = toLines(text);
+  // Header, contact and section lines still count toward length and keyword
+  // coverage, but they are not things a person can rewrite as achievements.
+  const lines = toLines(text).filter((line) => !isNotABullet(line));
   const checks: ReviewCheck[] = [];
 
   // 1. Quantified impact. Dates, years, phone numbers and emails are not
