@@ -20,6 +20,7 @@ CareerReady treats those experiences as evidence. It explains every signal, reco
 
 - **Explainable matching:** every skill score links back to evidence found in the user's own words.
 - **Proof, not just advice:** gaps become a seven-day sprint that ends with portfolio artifacts, résumé bullets, and an application pack.
+- **Résumé review that edits your actual lines:** quantification, weak openers, clichés, passive voice, length, keyword coverage against the target post — plus line-by-line rewrites, and a flag for bias-inviting details (age, marital status, photo) that shouldn't be on a résumé at all.
 - **Private on-device AI:** a quantized MiniLM sentence-embedding model compares meaning in the browser. Résumé text is not sent to an application server.
 - **Reliable live demo:** if the model cannot warm up quickly, a transparent local evidence engine returns an instant result.
 - **Inclusive by design:** school projects, volunteering, and informal work are treated as valid experience; degree prestige is not scored.
@@ -27,11 +28,12 @@ CareerReady treats those experiences as evidence. It explains every signal, reco
 
 ## Working prototype
 
-1. Choose a sample pathway or paste your own experience and job listing.
+1. Paste your experience and any job description — any role, any industry.
 2. Turn on the privacy shield and select **Map my path**.
 3. Inspect the readiness score and the evidence behind every skill.
-4. Mark daily proof-building tasks complete; progress persists on the device.
-5. Rehearse an interview answer and receive actionable structure feedback.
+4. Read the résumé review and apply the line-by-line rewrites.
+5. Mark daily proof-building tasks complete; progress persists on the device.
+6. Rehearse an interview answer and receive actionable structure feedback.
 
 ## Technology
 

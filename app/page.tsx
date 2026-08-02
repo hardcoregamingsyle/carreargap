@@ -30,6 +30,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { compareMeaning } from "./on-device-ai";
 import { analyzeListing, type Analysis } from "./analyze";
+import { reviewResume } from "./resume-review";
 import { api } from "../convex/_generated/api";
 
 // Inlined at build time from NEXT_PUBLIC_CONVEX_URL (see ConvexClientProvider).
@@ -66,6 +67,7 @@ const samples = {
 const navItems = [
   ["Overview", TrendingUp],
   ["Pathfinder", Target],
+  ["Résumé review", FileText],
   ["Learning sprint", BookOpen],
   ["Interview lab", MessageSquareText],
 ] as const;
@@ -109,6 +111,12 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration-safe read from localStorage; SSR can't see it, so it can't be a lazy useState initializer.
     if (saved) setCompletedDays(JSON.parse(saved));
   }, []);
+
+  // Recomputed as the résumé is edited, so fixes are reflected immediately.
+  const review = useMemo(
+    () => reviewResume(profile, analysis.skills.map((skill) => skill.name)),
+    [profile, analysis],
+  );
 
   const sprint = useMemo(() => {
     const gaps = analysis.gaps.length ? analysis.gaps : ["portfolio proof", "interview practice"];
@@ -186,7 +194,7 @@ export default function Home() {
         <p className="nav-kicker">Your workspace</p>
         <nav>
           {navItems.map(([label, Icon]) => {
-            const id = label === "Overview" ? "top" : label === "Pathfinder" ? "pathfinder" : label === "Learning sprint" ? "sprint" : "interview";
+            const id = label === "Overview" ? "top" : label === "Pathfinder" ? "pathfinder" : label === "Résumé review" ? "resume" : label === "Learning sprint" ? "sprint" : "interview";
             return (
               <button key={label} className={activeNav === label ? "active" : ""} onClick={() => scrollTo(id, label)}>
                 <Icon size={18} /> {label}
@@ -295,9 +303,73 @@ export default function Home() {
             </div>
           </section>
 
+          <section className="resume-section" id="resume" aria-labelledby="resume-heading">
+            <div className="section-heading">
+              <div>
+                <div className="eyebrow"><span>03</span> Résumé review</div>
+                <h2 id="resume-heading">Fix the lines before you send them.</h2>
+              </div>
+              <p>Checked against this job post, in your browser. Every note points at your own words.</p>
+            </div>
+
+            {profile.trim().length < 15 ? (
+              <div className="resume-empty">
+                <FileText size={20} />
+                <p>Paste your experience above and the review appears here — no upload, no account needed.</p>
+              </div>
+            ) : (
+              <div className="resume-grid">
+                <article className="resume-score-card">
+                  <span className="mini-label">Résumé strength</span>
+                  <strong>{review.score}<small>/100</small></strong>
+                  <p>{review.wordCount} words · {review.checks.filter((check) => check.status === "pass").length} of {review.checks.length} checks passed</p>
+                  <div className="resume-check-bar" role="img" aria-label={`${review.checks.filter((check) => check.status === "pass").length} of ${review.checks.length} checks passed`}>
+                    {review.checks.map((check) => <span key={check.label} className={check.status} />)}
+                  </div>
+                </article>
+
+                <article className="resume-checks">
+                  {review.checks.map((check) => (
+                    <div className={`resume-check ${check.status}`} key={check.label}>
+                      <span className="resume-check-icon">
+                        {check.status === "pass" ? <Check size={14} /> : check.status === "warn" ? <Lightbulb size={14} /> : <X size={14} />}
+                      </span>
+                      <div>
+                        <strong>{check.label}</strong>
+                        <span>{check.detail}</span>
+                        {check.fix && <small>{check.fix}</small>}
+                      </div>
+                    </div>
+                  ))}
+                </article>
+              </div>
+            )}
+
+            {review.bullets.length > 0 && (
+              <div className="rewrite-block">
+                <div className="rewrite-head">
+                  <Sparkles size={17} />
+                  <div>
+                    <strong>Line-by-line rewrites</strong>
+                    <span>Suggestions only — keep your own voice, and never claim something you cannot back up.</span>
+                  </div>
+                </div>
+                {review.bullets.map((bullet) => (
+                  <div className="rewrite-row" key={bullet.original}>
+                    <p className="rewrite-before">{bullet.original}</p>
+                    <ul className="rewrite-issues">
+                      {bullet.issues.map((issue) => <li key={issue}>{issue}</li>)}
+                    </ul>
+                    <p className="rewrite-after"><ArrowRight size={14} /> {bullet.rewrite}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
           <section className="sprint-section" id="sprint">
             <div className="section-heading">
-              <div><div className="eyebrow"><span>03</span> Proof-building sprint</div><h2>Seven days. One credible step forward.</h2></div>
+              <div><div className="eyebrow"><span>04</span> Proof-building sprint</div><h2>Seven days. One credible step forward.</h2></div>
               <div className="progress-copy"><strong>{completedDays.length}/7</strong><span>days complete</span></div>
             </div>
             <div className="progress-track"><span style={{ width: `${(completedDays.length / 7) * 100}%` }} /></div>
@@ -320,7 +392,7 @@ export default function Home() {
 
           <section className="interview-section" id="interview">
             <div className="interview-intro">
-              <div className="eyebrow light"><span>04</span> Adaptive interview lab</div>
+              <div className="eyebrow light"><span>05</span> Adaptive interview lab</div>
               <h2>Practice the story<br />behind the skills.</h2>
               <p>No generic “confidence” score. CareerReady checks whether your answer includes context, your action, and a concrete outcome.</p>
               <div className="question-dots">{analysis.questions.map((_, index) => <span key={index} className={questionIndex === index ? "active" : ""} />)}</div>
