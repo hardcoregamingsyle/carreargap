@@ -1,10 +1,24 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
-import hostingConfig from "./.openai/hosting.json";
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { sites } from "./build/sites-vite-plugin";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
+
+// .openai/hosting.json is generated per-deployment by the platform control
+// plane and is never committed, so it's absent when building outside that
+// platform (e.g. deploying straight to Cloudflare Pages). Fall back to no
+// bindings in that case instead of failing the build.
+const hostingConfigPath = fileURLToPath(
+  new URL("./.openai/hosting.json", import.meta.url),
+);
+const hostingConfig: { d1?: string; r2?: string } = existsSync(
+  hostingConfigPath,
+)
+  ? JSON.parse(readFileSync(hostingConfigPath, "utf-8"))
+  : {};
 
 const { d1, r2 } = hostingConfig;
 

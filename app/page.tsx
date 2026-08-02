@@ -164,8 +164,8 @@ function scoreAnswer(answer: string) {
 
 export default function Home() {
   const [selectedRole, setSelectedRole] = useState<keyof typeof roles>("Data Analyst");
-  const [profile, setProfile] = useState(roles["Data Analyst"].profile);
-  const [listing, setListing] = useState(roles["Data Analyst"].listing);
+  const [profile, setProfile] = useState<string>(roles["Data Analyst"].profile);
+  const [listing, setListing] = useState<string>(roles["Data Analyst"].listing);
   const [analysis, setAnalysis] = useState<Analysis>(() => makeAnalysis("Data Analyst", roles["Data Analyst"].profile));
   const [activeNav, setActiveNav] = useState("Overview");
   const [mobileNav, setMobileNav] = useState(false);
@@ -179,6 +179,7 @@ export default function Home() {
 
   useEffect(() => {
     const saved = window.localStorage.getItem("careerready-progress");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration-safe read from localStorage; SSR can't see it, so it can't be a lazy useState initializer.
     if (saved) setCompletedDays(JSON.parse(saved));
   }, []);
 

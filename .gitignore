@@ -36,7 +36,11 @@ yarn-error.log*
 
 # typescript
 next-env.d.ts
+*.tsbuildinfo
 /dist/
 /.wrangler/
 /outputs/
 /work/
+
+# platform-generated hosting config (deployment-specific bindings, never committed)
+/.openai/

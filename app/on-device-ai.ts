@@ -1,11 +1,15 @@
-let extractorPromise: Promise<any> | null = null;
+let extractorPromise: ReturnType<typeof createExtractor> | null = null;
+
+function createExtractor() {
+  return import("@huggingface/transformers").then(async ({ env, pipeline }) => {
+    env.allowLocalModels = false;
+    return pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", { dtype: "q8" });
+  });
+}
 
 async function getExtractor() {
   if (!extractorPromise) {
-    extractorPromise = import("@huggingface/transformers").then(async ({ env, pipeline }) => {
-      env.allowLocalModels = false;
-      return pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", { dtype: "q8" });
-    });
+    extractorPromise = createExtractor();
   }
   return extractorPromise;
 }
