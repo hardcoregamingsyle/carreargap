@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Must match the existing Worker name in Cloudflare — the custom domain is
+  // bound to this Worker. A different name here deploys to a different Worker.
+  "name": "carreargap",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  // The Vite RSC build emits a multi-module ES bundle whose SSR entry does a
+  // dynamic import("../index.js") back to the RSC entry. Upload the modules
+  // as-is instead of letting wrangler re-bundle them, which cannot resolve
+  // that cross-directory specifier.
+  "no_bundle": true,
+  "rules": [{ "type": "ESModule", "globs": ["**/*.js", "**/*.mjs"] }],
+  "assets": {
+    "directory": "dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
+  "observability": { "enabled": true }
+}
