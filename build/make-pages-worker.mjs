@@ -32,6 +32,12 @@ await cp(serverDir, workerDir, {
   filter: (source) => !/(?:wrangler\.json|[/\\]\.vite)$/.test(source),
 });
 
+// The Cloudflare Vite plugin writes a "redirected config" pointing at the
+// Workers-shaped dist/server/wrangler.json. Cloudflare's Pages builder finds
+// it, reports it as invalid ("Did you mean to use wrangler.toml to configure
+// Pages?"), and it's pure noise on this deploy path.
+await rm(resolve(root, ".wrangler/deploy/config.json"), { force: true });
+
 const assetsIgnorePath = resolve(clientDir, ".assetsignore");
 const existing = existsSync(assetsIgnorePath)
   ? await readFile(assetsIgnorePath, "utf8")
