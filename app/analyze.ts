@@ -324,7 +324,7 @@ export function analyzeListing(listing: string, profile: string): Analysis {
       const quote = quoteFor(profileSentences, skill.related ?? []);
       return {
         name: skill.name,
-        score: Math.min(68, 46 + depthBonus),
+        score: Math.min(72, 58 + depthBonus),
         status: "build",
         evidence: quote
           ? `Adjacent evidence (“${relatedTerm}”), but not ${skill.name} directly: “${quote}”`
@@ -340,7 +340,18 @@ export function analyzeListing(listing: string, profile: string): Analysis {
     };
   });
 
-  const average = Math.round(skills.reduce((sum, skill) => sum + skill.score, 0) / skills.length);
+  // Weight by how prominently the listing mentions each skill (they lead with
+  // what matters). A flat mean let one missing nice-to-have drag a genuinely
+  // well-matched candidate down to ~50, which reads as "barely qualified" —
+  // exactly the discouraging verdict this tool exists to avoid.
+  const weighted = skills.reduce(
+    (acc, skill, index) => {
+      const weight = skills.length - index;
+      return { total: acc.total + skill.score * weight, weight: acc.weight + weight };
+    },
+    { total: 0, weight: 0 },
+  );
+  const average = Math.round(weighted.total / Math.max(1, weighted.weight));
   const strengths = skills.filter((skill) => skill.status === "strong").map((skill) => skill.name);
   const gaps = skills.filter((skill) => skill.status === "build").map((skill) => skill.name);
 

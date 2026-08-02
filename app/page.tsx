@@ -95,9 +95,9 @@ export default function Home() {
   const [selectedRole, setSelectedRole] = useState<string>("Data Analyst");
   const [profile, setProfile] = useState<string>(samples["Data Analyst"].profile);
   const [listing, setListing] = useState<string>(samples["Data Analyst"].listing);
-  const [analysis, setAnalysis] = useState<Analysis>(() =>
-    analyzeListing(samples["Data Analyst"].listing, samples["Data Analyst"].profile),
-  );
+  // Semantic nudge from the on-device model. Null until "Map my path" runs, and
+  // cleared whenever the inputs change so a stale score can never linger.
+  const [semanticScore, setSemanticScore] = useState<number | null>(null);
   const [activeNav, setActiveNav] = useState("Overview");
   const [mobileNav, setMobileNav] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -119,6 +119,17 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration-safe read from localStorage; SSR can't see it, so it can't be a lazy useState initializer.
     if (saved) setCompletedDays(JSON.parse(saved));
   }, []);
+
+  // Derived, never stored. Uploading a résumé or editing the listing used to
+  // leave the whole skill map, sprint and interview showing the previous
+  // analysis until "Map my path" was pressed again — evidence quoted from text
+  // the user had already replaced.
+  const analysis: Analysis = useMemo(() => {
+    const base = analyzeListing(listing, profile);
+    if (semanticScore === null) return base;
+    // The evidence-based score leads; the model only nudges it.
+    return { ...base, score: Math.round(base.score * 0.82 + semanticScore * 0.18) };
+  }, [listing, profile, semanticScore]);
 
   // Recomputed as the résumé is edited, so fixes are reflected immediately.
   const review = useMemo(
@@ -171,6 +182,7 @@ export default function Home() {
     try {
       const { text, pages, words } = await extractPdfText(file);
       setProfile(text);
+      setSemanticScore(null);
       setResumeFile({ name: file.name, pages, words });
       setShowExtracted(false);
     } catch (error) {
@@ -191,23 +203,19 @@ export default function Home() {
     setAnswerResult(null);
     setQuestionIndex(0);
     setAnswer("");
-    // Skills, evidence and questions all come from the pasted listing, so any
-    // job description works — not just the samples.
-    const base = analyzeListing(listing, profile);
     try {
       const similarity = await Promise.race([
         compareMeaning(profile, listing),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Model warm-up timed out")), 6500)),
       ]);
-      const semanticScore = Math.round(42 + similarity * 50);
-      setAnalysis({ ...base, score: Math.round(base.score * 0.62 + semanticScore * 0.38) });
+      setSemanticScore(Math.round(42 + similarity * 50));
       setAiState("ready");
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 550));
-      setAnalysis(base);
+      setSemanticScore(null);
       setAiState("fallback");
     }
-    setSelectedRole(base.role);
+    setSelectedRole(analyzeListing(listing, profile).role);
     setAnalyzing(false);
     document.getElementById("pathfinder")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -257,7 +265,6 @@ export default function Home() {
               setProfile(saved.profile);
               setListing(saved.listing);
               setCompletedDays(saved.completedDays);
-              setAnalysis(analyzeListing(saved.listing, saved.profile));
             }}
           />
         ) : (
@@ -363,7 +370,7 @@ export default function Home() {
               </div>
               <label>
                 <span className="field-title"><BriefcaseBusiness size={17} /> Target opportunity <small>{listing.trim().split(/\s+/).filter(Boolean).length} words</small></span>
-                <textarea value={listing} onChange={(event) => setListing(event.target.value)} placeholder="Paste any job description here — any role, any industry. CareerReady reads the skills it asks for and checks them against your experience." />
+                <textarea value={listing} onChange={(event) => { setListing(event.target.value); setSemanticScore(null); }} placeholder="Paste any job description here — any role, any industry. CareerReady reads the skills it asks for and checks them against your experience." />
               </label>
             </div>
             <div className="analysis-actions">
