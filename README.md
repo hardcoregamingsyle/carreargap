@@ -108,32 +108,6 @@ This project was created during the hackathon with AI assistance, as permitted b
 
 No AI-generated output is presented as professional hiring advice. The product explains that its results are guidance and keeps the user in control.
 
-## Judging alignment
-
-| Criterion | Evidence in the prototype |
-| --- | --- |
-| Innovation & originality | Closes the loop from semantic gap analysis to proof-building and interview rehearsal; uses private on-device inference. |
-| Practicality & viability | Works without accounts, a database, or API cost; includes reliable samples and fallback behavior. |
-| User experience | Responsive, keyboard-friendly journey with plain-language copy, progressive disclosure, and clear feedback. |
-| Business value | A school, NGO, or placement cell can offer scalable coaching while preserving student privacy. |
-| Societal impact | Helps first-time applicants translate informal experience without prestige or degree filters. |
-| Presentation | One cohesive before → plan → proof story that can be demonstrated in under three minutes. |
-
-## Team
-
-- **Team name:** _Add before submission_
-- **Members and roles:** _Add 2–4 team members before submission_
-- **Hackathon:** SFHS Code Hack 7.0 Innovation Challenge
-
-## Submission checklist
-
-- [ ] Add team name and all member roles above
-- [x] Add the deployed application link near the top of this README
-- [ ] Record and add the 2–5 minute demo video
-- [ ] Add the presentation PDF/PPT to the repository
-- [ ] Confirm the final repository is public or accessible to judges
-- [ ] Submit all links before 8:00 AM on 2 August 2026
-
 ## License
 
-Created for SFHS Code Hack 7.0. Add your chosen open-source license before submission.
+Created for SFHS Code Hack 7.0.
