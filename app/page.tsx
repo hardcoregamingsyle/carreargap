@@ -123,14 +123,15 @@ export default function Home() {
     ];
   }, [analysis]);
 
-  const loadSample = (sample: keyof typeof samples) => {
-    setSelectedRole(sample);
-    setProfile(samples[sample].profile);
-    setListing(samples[sample].listing);
-    setAnalysis(analyzeListing(samples[sample].listing, samples[sample].profile));
+  // The fields start pre-filled with a worked example so the page is readable
+  // on arrival; this empties both so the user can paste their own.
+  const clearFields = () => {
+    setProfile("");
+    setListing("");
     setAnswer("");
     setAnswerResult(null);
     setQuestionIndex(0);
+    document.getElementById("start-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const runAnalysis = async () => {
@@ -237,12 +238,10 @@ export default function Home() {
 
           <section className="input-card" aria-labelledby="start-heading">
             <div className="input-card-heading">
-              <div><span className="mini-label">Paste any job post — or start from a sample</span><h2 id="start-heading">What are you aiming for?</h2></div>
-              <div className="role-tabs" aria-label="Load a sample pathway">
-                {(Object.keys(samples) as Array<keyof typeof samples>).map((sample) => (
-                  <button key={sample} type="button" className={selectedRole === sample ? "selected" : ""} onClick={() => loadSample(sample)}>{sample}</button>
-                ))}
-              </div>
+              <div><span className="mini-label">Any role · any industry · any employer</span><h2 id="start-heading">Paste the job you&rsquo;re aiming for</h2></div>
+              <button type="button" className="ghost-button" onClick={clearFields}>
+                <RotateCcw size={15} /> Clear and use my own
+              </button>
             </div>
             <div className="input-grid">
               <label>

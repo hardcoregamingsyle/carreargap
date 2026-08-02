@@ -84,7 +84,7 @@ const SKILLS: SkillDef[] = [
   { name: "Financial analysis", terms: ["financial", "budget", "forecasting", "accounting", "p&l"], related: ["excel", "numbers", "cost", "analysis"] },
   { name: "Customer support", terms: ["customer support", "customer service", "helpdesk", "client support"], related: ["communicate", "help", "resolve", "users"] },
   { name: "Sales", terms: ["sales", "business development", "lead generation", "crm", "outreach"], related: ["client", "communicate", "target", "customer"] },
-  { name: "Teaching & training", terms: ["teaching", "training", "mentoring", "curriculum", "tutor"], related: ["explain", "workshop", "peer", "students"] },
+  { name: "Teaching & training", terms: ["teach", "teaching", "train", "training", "mentor", "mentoring", "onboard", "curriculum", "tutor"], related: ["explain", "workshop", "peer", "students", "coach"] },
   { name: "Operations", terms: ["operations", "logistics", "supply chain", "inventory", "process improvement"], related: ["organize", "coordinate", "efficiency", "process"] },
   { name: "Research", terms: ["research", "literature review", "qualitative", "quantitative"], related: ["study", "analysis", "survey", "investigate"] },
 
@@ -125,15 +125,40 @@ function sentences(text: string): string[] {
     .filter((item) => item.length > 0);
 }
 
-/** The candidate's own sentence backing a skill — this is the "evidence". */
+const QUOTE_MAX = 104;
+
+/**
+ * The candidate's own words backing a skill — this is the "evidence".
+ * Long sentences are windowed *around the matched phrase* rather than truncated
+ * from the start, so the quote always contains the thing it is evidence of.
+ */
 function quoteFor(profileSentences: string[], terms: string[]): string | null {
-  const hit = profileSentences.find((sentence) => {
-    const lower = sentence.toLowerCase();
-    return terms.some((term) => hasTerm(lower, term));
-  });
-  if (!hit) return null;
-  const trimmed = hit.replace(/\s+/g, " ").trim();
-  return trimmed.length > 96 ? `${trimmed.slice(0, 93)}…` : trimmed;
+  for (const raw of profileSentences) {
+    const sentence = raw.replace(/\s+/g, " ").trim();
+    for (const term of terms) {
+      const match = termRegex(term).exec(sentence);
+      if (!match) continue;
+      if (sentence.length <= QUOTE_MAX) return sentence;
+
+      const centre = match.index + Math.floor(match[0].length / 2);
+      let start = Math.max(0, centre - Math.floor(QUOTE_MAX / 2));
+      let end = Math.min(sentence.length, start + QUOTE_MAX);
+      start = Math.max(0, end - QUOTE_MAX);
+
+      // Snap outward to whole words so the quote doesn't start mid-word.
+      if (start > 0) {
+        const space = sentence.indexOf(" ", start);
+        if (space !== -1 && space < centre) start = space + 1;
+      }
+      if (end < sentence.length) {
+        const space = sentence.lastIndexOf(" ", end);
+        if (space !== -1 && space > centre) end = space;
+      }
+
+      return `${start > 0 ? "…" : ""}${sentence.slice(start, end).trim()}${end < sentence.length ? "…" : ""}`;
+    }
+  }
+  return null;
 }
 
 const TITLE_WORDS =
